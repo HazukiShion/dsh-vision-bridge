@@ -18,7 +18,7 @@ var module = { exports: {} }; var exports = module.exports;
  */
 
 const React = require('react')
-const { Button, Input, StateDot } = require('@deepseek-ai/dsh-client-ui-primitives')
+const { Button, Input, StateDot, Toast } = require('@deepseek-ai/dsh-client-ui-primitives')
 
 const NS = 'shion-vision-bridge'
 const SETTINGS_ROUTE = '/_dsh/shion-vision-bridge/settings'
@@ -67,9 +67,10 @@ const en = {
   retry: 'Retry',
   fetchModels: 'Fetch',
   fetching: 'Fetching…',
-  testConn: 'Test connection',
+  testConn: 'Test',
   testing: 'Testing…',
-  testOk: 'Endpoint reachable',
+  testOk: 'Reads images correctly',
+  testBlind: 'Endpoint answered but did not read the picture —',
   modelsFound: 'models listed',
   modelEmpty: 'Fetch to list models',
   modelHint: 'Pick from what this endpoint lists. Fetch again after changing the base URL.',
@@ -113,9 +114,10 @@ const zh = {
   retry: '重试',
   fetchModels: '拉取',
   fetching: '拉取中…',
-  testConn: '测试连接',
+  testConn: '测试',
   testing: '测试中…',
-  testOk: '端点连通',
+  testOk: '识图正常',
+  testBlind: '端点通了，但没读出图里的内容 ——',
   modelsFound: '个模型可选',
   modelEmpty: '按「拉取」获取可选模型',
   modelHint: '从端点列出的模型里选。改了 Base URL 之后重新拉取。',
@@ -154,11 +156,29 @@ function SettingsSection(props) {
   const [models, setModels] = React.useState([])
   const [busy, setBusy] = React.useState('')
 
-  // Each probe reports beside the button that started it. A single shared line
-  // in the footer worked, but the answer landed a full scroll away from the
-  // control — you pressed Test and nothing appeared to happen.
-  const [probe, setProbe] = React.useState({ models: '', test: '' })
-  const say = (action, message) => setProbe((current) => Object.assign({}, current, { [action]: message }))
+  // Outcome lands in two places, neither of which costs layout: the button
+  // flashes green or red for a moment, and a toast carries the words. Earlier
+  // versions printed the result beside the button, which read fine but pushed
+  // the row around and left a stale sentence sitting there afterwards.
+  const [flash, setFlash] = React.useState({})
+  const [toast, setToast] = React.useState(undefined)
+  const flashTimers = React.useRef({})
+
+  const say = (action, ok, message) => {
+    // Functional update: `toast` in this closure is whatever it was when the
+    // handler was created, which is not the sequence we need to advance.
+    setToast((current) => ({ text: message, seq: (current?.seq ?? 0) + 1 }))
+    setFlash((current) => Object.assign({}, current, { [action]: ok ? 'ok' : 'bad' }))
+    clearTimeout(flashTimers.current[action])
+    flashTimers.current[action] = setTimeout(
+      () => setFlash((current) => Object.assign({}, current, { [action]: '' })),
+      1200,
+    )
+  }
+
+  React.useEffect(() => () => {
+    for (const id of Object.values(flashTimers.current)) clearTimeout(id)
+  }, [])
 
   // A dropdown with nothing in it is a dead control, so fill it as soon as the
   // page opens rather than making Fetch a required first step. Failures stay
@@ -183,7 +203,6 @@ function SettingsSection(props) {
   /** Run a named server action against the values currently on screen. */
   const act = async (action, extra) => {
     setBusy(action)
-    say(action, '')
     try {
       const response = await fetch(SETTINGS_ROUTE, {
         method: 'POST',
@@ -316,26 +335,33 @@ function SettingsSection(props) {
               try {
                 const result = await act('models', { baseUrl: draft.baseUrl })
                 setModels(result.models || [])
-                say('models', `${(result.models || []).length} ${t('modelsFound')}`)
-              } catch (error) { say('models', error.message) }
+                say('models', true, `${(result.models || []).length} ${t('modelsFound')}`)
+              } catch (error) { say('models', false, error.message) }
             },
+            className: flash.models ? `shion-vb-flash-${flash.models}` : undefined,
           }, busy === 'models' ? t('fetching') : t('fetchModels')),
-          probe.models ? h('span', { className: 'shion-vb-probe' }, probe.models) : null)),
 
-      h(Field, { label: t('credential'), help: t('credentialHelp') }, text('credential')),
+          // Test sits beside Fetch because that is the order of the work: pick
+          // a model, then find out whether that model can actually see.
+          h(Button, {
+            variant: 'ghost', size: 'sm',
+            disabled: busy !== '' || !draft.baseUrl || !draft.model,
+            onClick: async () => {
+              try {
+                const result = await act('test', { baseUrl: draft.baseUrl, model: draft.model })
+                // Three outcomes, not two: unreachable, reachable but blind,
+                // and working. The middle one looks like success on the wire,
+                // so it flashes red — it is a failure of the thing being tested.
+                say('test', result.read,
+                  result.read
+                    ? `${t('testOk')} · ${result.latencyMs}ms`
+                    : `${t('testBlind')} "${result.reply}"`)
+              } catch (error) { say('test', false, error.message) }
+            },
+            className: flash.test ? `shion-vb-flash-${flash.test}` : undefined,
+          }, busy === 'test' ? t('testing') : t('testConn')))),
 
-      h('div', { className: 'shion-vb-testrow' },
-        h(Button, {
-          variant: 'ghost', size: 'sm',
-          disabled: busy !== '' || !draft.baseUrl || !draft.model,
-          onClick: async () => {
-            try {
-              const result = await act('test', { baseUrl: draft.baseUrl, model: draft.model })
-              say('test', `${t('testOk')} · ${result.latencyMs}ms · "${result.reply}"`)
-            } catch (error) { say('test', error.message) }
-          },
-        }, busy === 'test' ? t('testing') : t('testConn')),
-        probe.test ? h('span', { className: 'shion-vb-probe' }, probe.test) : null)),
+      h(Field, { label: t('credential'), help: t('credentialHelp') }, text('credential'))),
 
     h('div', { className: 'shion-set-group' },
       h('div', { className: 'shion-set-group-title' }, t('translation')),
@@ -349,6 +375,12 @@ function SettingsSection(props) {
       h(Field, { label: t('maxImages'), help: t('maxImagesHelp') }, numberField('maxImages')),
       h(Field, { label: t('timeoutMs'), help: t('timeoutMsHelp') }, numberField('timeoutMs')),
       h(Field, { label: t('displayCapacity'), help: t('displayCapacityHelp') }, numberField('displayCapacity'))),
+
+    toast ? h(Toast, {
+      key: toast.seq,
+      text: toast.text,
+      onDone: () => setToast(undefined),
+    }) : null,
 
     h('div', { className: 'shion-set-actions' },
       note ? h('span', { className: 'shion-set-note' }, note) : null,
@@ -412,11 +444,22 @@ function installStyles() {
     .shion-set-note { margin-right: auto; font-size: 13px; color: var(--dsw-alias-label-tertiary); }
 
     /* Control takes the row, button keeps its natural size, result follows it. */
-    .shion-vb-inline { display: flex; align-items: center; gap: 8px; }
+    .shion-vb-inline { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .shion-vb-inline > select { flex: 1 1 180px; }
     .shion-vb-inline > span:has(> input) { flex: 1; min-width: 0; display: flex; }
-    .shion-vb-inline > select { flex: 1; min-width: 0; }
-    .shion-vb-testrow { display: flex; align-items: center; gap: 10px; padding-top: 4px; }
-    .shion-vb-probe { font-size: 13px; color: var(--dsw-alias-label-tertiary); min-width: 0; overflow-wrap: anywhere; }
+    /* The button says it worked before the words arrive: a short tint, then
+       back to normal.
+
+       Literal colours, not the app's --dsw-alias-state-* tokens, and that is
+       measured rather than lazy: those aliases ARE defined in this scope but
+       resolve through --dsw-static-* variables that are not, so the whole
+       declaration becomes invalid at computed-value time and the background
+       falls back to transparent — a var() fallback only applies when the
+       variable is undefined, never when its value fails to resolve. The flash
+       silently did nothing. These two read correctly on both themes. */
+    .shion-vb-flash-ok, .shion-vb-flash-bad { transition: background-color 140ms ease, color 140ms ease; }
+    .shion-vb-flash-ok { background: #22c55e !important; color: #06210f !important; }
+    .shion-vb-flash-bad { background: #ef4444 !important; color: #2a0808 !important; }
   `
   document.head.append(style)
   return () => { style.remove() }

@@ -1,6 +1,6 @@
 {
   "name": "@hazukishion/dsh-vision-bridge",
-  "version": "0.2.3",
+  "version": "0.2.4",
   "private": true,
   "description": "DeepSeek Harness profile bundle: gives a text-only model sight by translating image content blocks through an external vision model.",
   "type": "module",
@@ -13,6 +13,7 @@
   "files": [
     "index.js",
     "vlm.js",
+    "probe.png",
     "paths.js",
     "png-crop.js",
     "modality.js",

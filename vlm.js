@@ -8,6 +8,8 @@
  * @module @hazukishion/dsh-vision-bridge/vlm
  */
 
+import { readFileSync } from 'node:fs'
+
 /**
  * Bound in-flight requests to the endpoint.
  *
@@ -38,17 +40,22 @@ export function createGate(limit) {
 }
 
 /**
- * A 64x64 PNG, inlined so a connection test never depends on a file existing.
+ * The token written into `probe.png`, and the answer a working setup returns.
  *
- * Not smaller: a 2x2 probe is a perfectly valid PNG and endpoints still reject
- * it — "failed to decode image: invalid or unsupported image format" — because
- * they enforce a minimum size. 64x64 clears that everywhere while staying at
- * 167 bytes, so the round trip still measures the endpoint and not the upload.
+ * Arbitrary on purpose: a model that cannot actually see the image has no way
+ * to produce it, whereas asking for "ok" is answerable from the prompt alone —
+ * which is exactly what the old probe did, and why it could pass against an
+ * endpoint that accepted the image part and never looked at it.
  */
-const PROBE_PNG = Buffer.from(
-  'iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAIAAAAlC+aJAAAAbklEQVR42u3aMQ2AUABDwVpAAcbwgA90MSAADQhAATMzf6DJNc/A7c1UvgD8BnBlKwoAAAAAAAAAAOAFyHEWBQAAAAAAAAAAAAAwEnDvKQoAAAAAAAAAAAAAYCRgXpeiAAAAAAAAAAAAfKcBvu8BFruJRuB1+gcAAAAASUVORK5CYII=',
-  'base64',
-)
+export const PROBE_TOKEN = '5182'
+
+/** Read once, lazily: most sessions never run a connection test. */
+let probeBytes
+
+function probe() {
+  probeBytes ??= readFileSync(new URL('./probe.png', import.meta.url))
+  return probeBytes
+}
 
 /**
  * List the models an OpenAI-compatible endpoint advertises.
@@ -84,13 +91,16 @@ export async function listVisionModels({ baseUrl, apiKey, timeoutMs, signal }) {
 }
 
 /**
- * Send one tiny image and time the round trip.
+ * Look at the shipped probe image and check the answer.
  *
- * Tests the path that actually matters — credential, model id, and vision
- * capability together — rather than just whether the host resolves.
+ * This is the only check that exercises what the plugin is actually for. An
+ * endpoint can accept an image part, return 200, and still be pointed at a
+ * model that reads no pixels — so the test asks for something only a reader can
+ * produce, and reports the three outcomes separately: unreachable, reachable
+ * but blind, and working.
  *
  * @param options - endpoint, model, credential and cancellation.
- * @returns latency and the model's reply.
+ * @returns latency, the reply, and whether the token came back.
  */
 export async function testVision({ baseUrl, model, apiKey, timeoutMs, signal }) {
   const started = Date.now()
@@ -98,12 +108,16 @@ export async function testVision({ baseUrl, model, apiKey, timeoutMs, signal }) 
     baseUrl,
     model,
     apiKey,
-    images: [{ bytes: PROBE_PNG, mediaType: 'image/png' }],
-    prompt: 'Reply with the single word: ok',
+    images: [{ bytes: probe(), mediaType: 'image/png' }],
+    prompt: 'What number is written in this image? Reply with the digits and nothing else.',
     timeoutMs,
     signal,
   })
-  return { latencyMs: Date.now() - started, reply: answer.slice(0, 120) }
+  return {
+    latencyMs: Date.now() - started,
+    reply: answer.slice(0, 120),
+    read: answer.replace(/\D+/g, '').includes(PROBE_TOKEN),
+  }
 }
 
 /** Media types the attachment service admits, and that endpoints accept. */
