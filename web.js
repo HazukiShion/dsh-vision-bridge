@@ -12,7 +12,7 @@
  * second store. The day the allowlist opens up, the page can switch to the
  * standard wire and nothing else changes.
  *
- * @module @shion/dsh-vision-bridge/web
+ * @module @hazukishion/dsh-vision-bridge/web
  */
 
 /** Path the client half fetches. Must match the constant in the client bundle. */

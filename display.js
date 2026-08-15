@@ -20,7 +20,7 @@
  * The earlier design had it backwards: random tokens in a table meant the
  * durable half (the URL) depended on the disposable half (the map).
  *
- * @module @shion/dsh-vision-bridge/display
+ * @module @hazukishion/dsh-vision-bridge/display
  */
 
 import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto'

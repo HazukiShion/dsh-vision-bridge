@@ -1,5 +1,5 @@
 /**
- * @shion/dsh-vision-bridge — sight for a text-only model.
+ * @hazukishion/dsh-vision-bridge — sight for a text-only model.
  *
  * Two capabilities, with deliberately different triggers:
  *
@@ -18,7 +18,7 @@
  * stays in session history, every later turn fails too. Leaving one through
  * poisons the conversation permanently.
  *
- * @module @shion/dsh-vision-bridge
+ * @module @hazukishion/dsh-vision-bridge
  */
 
 import { defineTool } from '@deepseek-ai/dsh-tools'
@@ -30,7 +30,7 @@ import { cropPng } from './png-crop.js'
 import { askVision, createGate, DEFAULT_DESCRIBE_PROMPT, listVisionModels, testVision } from './vlm.js'
 import { installSettingsRoute } from './web.js'
 
-export const name = '@shion/dsh-vision-bridge'
+export const name = '@hazukishion/dsh-vision-bridge'
 
 export const inject = ['tools', 'settings', 'credentials', 'llm', 'attachments', 'webServer']
 

@@ -6,7 +6,7 @@
  * checked against the resolved real path, so neither `..` nor a symlink
  * pointing outside the workspace gets through.
  *
- * @module @shion/dsh-vision-bridge/paths
+ * @module @hazukishion/dsh-vision-bridge/paths
  */
 
 import { readFile, realpath, stat } from 'node:fs/promises'

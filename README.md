@@ -1,4 +1,4 @@
-# @shion/dsh-vision-bridge
+# @hazukishion/dsh-vision-bridge
 
 给读不了图的模型补上视觉。三件事，触发条件**故意各不相同**：
 
@@ -123,7 +123,7 @@ dsh web
 ## 卸载
 
 ```sh
-dsh plugin --profile web remove @shion/dsh-vision-bridge
+dsh plugin --profile web remove @hazukishion/dsh-vision-bridge
 ```
 
 完整清理还有四处（都可选）：
@@ -139,7 +139,7 @@ dsh credentials remove VISION_API_KEY
 #    编辑 ~/.dsh/settings.yaml，删掉 shion-vision-bridge: 那一段
 
 # 4. 打包产物
-rm -f ~/.dsh/plugin-tarballs/shion-dsh-vision-bridge-*.tgz
+rm -f ~/.dsh/plugin-tarballs/hazukishion-dsh-vision-bridge-*.tgz
 ```
 
 图片本身在 DSH 的 attachment 存储里，不归这个插件管。
@@ -305,7 +305,7 @@ vision response hit the token ceiling before writing an answer
 用户上传、将来任何插件产出的图片，只要以 image 块出现就自动被覆盖——两边都不需要
 知道对方存在。这是"能配合、也能单独用"的全部实现。
 
-实测：`@shion/dsh-browser` 的 `browser_screenshot` 和本插件从未互相引用，
+实测：`@hazukishion/dsh-browser` 的 `browser_screenshot` 和本插件从未互相引用，
 装上就直接协同工作。
 
 ### 转译不是优化，是必需的保护
@@ -462,7 +462,7 @@ ERR_PNPM_GIT_DEP_PREPARE_NOT_ALLOWED
 The git-hosted package needs to execute build scripts but is not in the "allowBuilds" allowlist.
 ```
 
-而它要求的 allowlist 键**带着 commit hash**（`@shion/dsh-browser@git+…#bb64ff7…`），
+而它要求的 allowlist 键**带着 commit hash**（`@hazukishion/dsh-browser@git+…#bb64ff7…`），
 只写包名无效——试过了。也就是说每推一次代码，装的人都要改一次 `pnpm-workspace.yaml`。
 那"一行安装"就不成立了。
 

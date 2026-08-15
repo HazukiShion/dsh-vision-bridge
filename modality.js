@@ -10,7 +10,7 @@
  * for a model that no longer needs it (or worse, stop translating for one that
  * does — which fails the whole turn).
  *
- * @module @shion/dsh-vision-bridge/modality
+ * @module @hazukishion/dsh-vision-bridge/modality
  */
 
 /** What the probe concluded, and why — the `why` is surfaced in diagnostics. */

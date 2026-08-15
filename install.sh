@@ -1,5 +1,5 @@
 #!/bin/sh
-# Pack and install @shion/dsh-vision-bridge into a profile.
+# Pack and install @hazukishion/dsh-vision-bridge into a profile.
 #
 # Two things this works around, both real traps for local plugin development:
 #
@@ -41,16 +41,16 @@ VERSION="$(node -p 'require("./package.json").version')"
 
 # Drop the previous entry BEFORE deleting its tarball: pnpm resolves every
 # existing dependency on any install, so a dangling file: path fails the run.
-dsh plugin --profile "$PROFILE" remove @shion/dsh-vision-bridge >/dev/null 2>&1 || true
+dsh plugin --profile "$PROFILE" remove @hazukishion/dsh-vision-bridge >/dev/null 2>&1 || true
 node scripts/build-client.mjs >/dev/null
-rm -f "$OUT"/shion-dsh-vision-bridge-*.tgz
+rm -f "$OUT"/hazukishion-dsh-vision-bridge-*.tgz
 pnpm pack --pack-destination "$OUT" >/dev/null
-TGZ="$(ls -t "$OUT"/shion-dsh-vision-bridge-*.tgz | head -1)"
+TGZ="$(ls -t "$OUT"/hazukishion-dsh-vision-bridge-*.tgz | head -1)"
 
 echo "packed $VERSION -> $TGZ"
 dsh plugin --profile "$PROFILE" add "$TGZ" 2>&1 | tail -3
 
-INSTALLED="$HOME/.dsh/profiles/$PROFILE/node_modules/@shion/dsh-vision-bridge/index.js"
+INSTALLED="$HOME/.dsh/profiles/$PROFILE/node_modules/@hazukishion/dsh-vision-bridge/index.js"
 if grep -q "vision-bridge ready" "$INSTALLED" 2>/dev/null; then
   echo "verified: installed copy is current"
 else

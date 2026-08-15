@@ -12,7 +12,7 @@
  * type 2 (RGB) or 6 (RGBA) — and anything else fails loudly instead of
  * silently returning the wrong pixels.
  *
- * @module @shion/dsh-vision-bridge/png-crop
+ * @module @hazukishion/dsh-vision-bridge/png-crop
  */
 
 import { crc32, deflateSync, inflateSync } from 'node:zlib'

@@ -14,7 +14,7 @@ const root = dirname(fileURLToPath(new URL('../package.json', import.meta.url)))
 const source = await readFile(join(root, 'src-client.js'), 'utf8')
 
 const wrapped = [
-  'window.__ModuleLoader__.load({ id: "@shion/dsh-vision-bridge", factory: (require) => {',
+  'window.__ModuleLoader__.load({ id: "@hazukishion/dsh-vision-bridge", factory: (require) => {',
   'var module = { exports: {} }; var exports = module.exports;',
   source,
   'return module.exports; } });',

@@ -1,5 +1,5 @@
 /**
- * Settings page for @shion/dsh-vision-bridge.
+ * Settings page for @hazukishion/dsh-vision-bridge.
  *
  * Plain CommonJS with `React.createElement` — no bundler, no transpiler.
  * `scripts/build-client.mjs` only adds the loader envelope.
@@ -12,7 +12,7 @@
  * actually changed. Colours come from `--dsw-alias-*` tokens so both themes
  * work without a second palette.
  *
- * @module @shion/dsh-vision-bridge/client
+ * @module @hazukishion/dsh-vision-bridge/client
  */
 
 const React = require('react')

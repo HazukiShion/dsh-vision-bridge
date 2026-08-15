@@ -5,7 +5,7 @@
  * base64 data URIs. No SDK: the request shape is small, stable, and every
  * candidate endpoint speaks it.
  *
- * @module @shion/dsh-vision-bridge/vlm
+ * @module @hazukishion/dsh-vision-bridge/vlm
  */
 
 /**

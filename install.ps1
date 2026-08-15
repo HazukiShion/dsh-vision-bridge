@@ -1,4 +1,4 @@
-# Pack and install @shion/dsh-vision-bridge into a profile, on Windows.
+# Pack and install @hazukishion/dsh-vision-bridge into a profile, on Windows.
 #
 # A direct translation of install.sh, which needs a POSIX shell that Windows
 # does not ship. Same two workarounds, both real traps for local plugin
@@ -43,18 +43,18 @@ try {
 
   # Drop the previous entry BEFORE deleting its tarball: pnpm resolves every
   # existing dependency on any install, so a dangling file: path fails the run.
-  dsh plugin --profile $Profile remove '@shion/dsh-vision-bridge' 2>&1 | Out-Null
+  dsh plugin --profile $Profile remove '@hazukishion/dsh-vision-bridge' 2>&1 | Out-Null
   node scripts/build-client.mjs | Out-Null
-  Remove-Item -Force -ErrorAction SilentlyContinue (Join-Path $out 'shion-dsh-vision-bridge-*.tgz')
+  Remove-Item -Force -ErrorAction SilentlyContinue (Join-Path $out 'hazukishion-dsh-vision-bridge-*.tgz')
   pnpm pack --pack-destination $out | Out-Null
 
-  $tgz = Get-ChildItem (Join-Path $out 'shion-dsh-vision-bridge-*.tgz') |
+  $tgz = Get-ChildItem (Join-Path $out 'hazukishion-dsh-vision-bridge-*.tgz') |
     Sort-Object LastWriteTime -Descending | Select-Object -First 1
   Write-Host "packed $version -> $($tgz.FullName)"
 
   dsh plugin --profile $Profile add $tgz.FullName 2>&1 | Select-Object -Last 3
 
-  $installed = Join-Path $HOME ".dsh\profiles\$Profile\node_modules\@shion\dsh-vision-bridge\index.js"
+  $installed = Join-Path $HOME ".dsh\profiles\$Profile\node_modules\@hazukishion\dsh-vision-bridge\index.js"
   if ((Test-Path $installed) -and (Select-String -Path $installed -Pattern 'vision-bridge ready' -Quiet)) {
     Write-Host 'verified: installed copy is current'
   } else {
