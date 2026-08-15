@@ -10,6 +10,9 @@
 
 零运行时依赖:HTTP 用 `fetch`,PNG 裁剪是自带的纯 JS 实现,签名用 `node:crypto`。
 
+> **个人自用项目。** 按现状(as-is)提供,不接受 issue 和 PR,不承诺维护或响应。
+> 觉得有用请随意 fork —— MIT 许可,改成你要的样子比等我改快得多。
+
 ---
 
 ## 目录
@@ -36,35 +39,26 @@
 | DSH | `0.1.0-rc.6`(实测版本) | 依赖 `ctx.attachments` / `ctx.credentials` / `tools/post-execute` 的当前形态 |
 | Node | **≥ 22** | 用到 `AbortSignal.any` 和 `node:zlib` 的 `crc32`(PNG 裁剪) |
 | 视觉端点 | 任一 OpenAI 兼容的多模态 `/chat/completions` | 插件不自带模型 |
-| 包管理器 | `pnpm` | 安装脚本用 `pnpm pack` |
+| 包管理器 | `pnpm` | `dsh plugin` 把参数转发给它 |
+| `git` | 装在 PATH 上 | 安装走 git spec,由 pnpm clone |
 
 宿主 profile 需要提供 `tools`、`settings`、`attachments`、`credentials`、`llm`
 这几个服务(标准 `web` profile 都有)。
 
 ## 安装
 
-从本仓库源码安装。**必须打包成 tarball 再装,不能直接装目录**——原因见
-[开发](#开发)。
-
-**macOS / Linux**
+一行,三个平台都一样:
 
 ```sh
-cd dsh-vision-bridge
-./install.sh          # 装进 web profile
+dsh plugin --profile web add github:HazukiShion/dsh-vision-bridge
 ```
 
-装进别的 profile:
+`dsh plugin` 把参数原样转发给 pnpm,pnpm 认 git spec,所以不需要 npm 账号,也不需要
+这个包出现在任何 registry 上。想钉在某个版本上就带 tag(`#v0.1.0`);不带后缀时跟的是
+默认分支,**每次重跑这条命令都会拉到最新提交**,这也是升级的方式。
 
-```sh
-./install.sh <profile>
-```
-
-**Windows(PowerShell)**
-
-```powershell
-cd dsh-vision-bridge
-.\install.ps1
-```
+> 本地改代码调试请走 [开发](#开发) 里的 `./install.sh`,那条路装的是本地 tarball,
+> 不经过 git。
 
 装完还要做两件事,插件才能真正工作:
 
@@ -110,15 +104,15 @@ dsh --profile web --dump-config | grep -A2 "shion-vision-bridge"
 
 ## 升级
 
-改完代码重跑安装脚本即可,它会先移除旧版本再装新的:
+和安装是同一条命令——git 依赖按 commit 解析,上游有新提交就会拉过来:
 
 ```sh
-./install.sh          # Windows: .\install.ps1
+dsh plugin --profile web add github:HazukiShion/dsh-vision-bridge
 dsh web
 ```
 
-脚本每次都会换一个唯一版本号——**pnpm 按 name+version 缓存 tarball**,同版本重装会
-静默装成旧内容。
+配置和凭证不受影响,升级不需要重填。本地开发装的是 tarball,升级走 `./install.sh`
+(Windows:`.\install.ps1`)。
 
 ## 卸载
 
@@ -449,7 +443,26 @@ dsh web               # 重启宿主
 
 副作用:每跑一次安装脚本,`package.json` 的 version 就会被改写,git 工作树会脏一行。
 
-`client.js` 是构建产物,已在 `.gitignore` 里;改的是 `src-client.js`。
+### 为什么 `client.js` 是提交进仓库的
+
+它是构建产物,按常理该 gitignore。但走 git 安装就不能:仓库里没有的文件,安装出来
+自然也没有,而它缺席时插件其他功能全正常,**只有设置页静默消失**,不报任何错。
+
+自然的解法是加一个 `prepare` 脚本(npm/pnpm 对 git 依赖会在 clone 之后、打包之前跑
+它)。**实测走不通**——pnpm 11 拒绝为 git 依赖执行构建脚本:
+
+```
+ERR_PNPM_GIT_DEP_PREPARE_NOT_ALLOWED
+The git-hosted package needs to execute build scripts but is not in the "allowBuilds" allowlist.
+```
+
+而它要求的 allowlist 键**带着 commit hash**(`@shion/dsh-browser@git+…#bb64ff7…`),
+只写包名无效——试过了。也就是说每推一次代码,装的人都要改一次 `pnpm-workspace.yaml`。
+那"一行安装"就不成立了。
+
+所以取舍是:**提交产物,换掉构建步骤**。它由 `src-client.js` 单向决定、重新生成的
+结果逐字节相同,所以只有源码真的改了才会产生 diff——噪音比想象中小。改的仍然是
+`src-client.js`,`./install.sh` 会自动重新构建。
 
 ### 设置页 UI 约定
 
