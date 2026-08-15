@@ -1,0 +1,21 @@
+#!/bin/sh
+# Refuse a commit whose client.js does not match its src-client.js.
+#
+# The bundle is committed because installing from git means the repository IS
+# the package (see README, "为什么 client.js 是提交进仓库的"). That buys a
+# one-line install and costs this: edit the source, forget to rebuild, and the
+# repo ships a stale UI to everyone who installs from git — while ./install.sh
+# users see the new one, because it rebuilds. Silent divergence, so check it.
+#
+# Enable once per clone:  git config core.hooksPath .githooks
+set -e
+
+node scripts/build-client.mjs >/dev/null
+
+if ! git diff --quiet -- client.js; then
+  echo "pre-commit: client.js is out of date with src-client.js." >&2
+  echo "            It has been rebuilt — stage it and commit again:" >&2
+  echo >&2
+  echo "                git add client.js" >&2
+  exit 1
+fi

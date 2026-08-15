@@ -464,6 +464,16 @@ The git-hosted package needs to execute build scripts but is not in the "allowBu
 结果逐字节相同,所以只有源码真的改了才会产生 diff——噪音比想象中小。改的仍然是
 `src-client.js`,`./install.sh` 会自动重新构建。
 
+代价是**产物可能和源码不同步**:改了 `src-client.js` 忘了重新构建就提交,git 安装的人
+拿到旧界面,而本地 `./install.sh` 用户看到的是新的——两边不一致且不报错。仓库里带了
+一个 pre-commit 钩子挡这件事,每个 clone 启用一次:
+
+```sh
+git config core.hooksPath .githooks
+```
+
+它重新构建一遍,发现 `client.js` 和源码对不上就中止提交并提示你 `git add`。
+
 ### 设置页 UI 约定
 
 客户端半边是**手写 CommonJS + `React.createElement`**,没有打包器、没有转译器。

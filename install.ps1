@@ -24,30 +24,42 @@ $out = Join-Path $HOME '.dsh\plugin-tarballs'
 Set-Location $here
 New-Item -ItemType Directory -Force -Path $out | Out-Null
 
-$version = '0.0.1-dev.' + [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
-node -e @'
+function Set-PkgVersion([string]$Value) {
+  node -e @'
   const fs = require("fs")
   const pkg = JSON.parse(fs.readFileSync("package.json", "utf8"))
   pkg.version = process.argv[1]
   fs.writeFileSync("package.json", JSON.stringify(pkg, null, 2) + "\n")
-'@ $version
+'@ $Value
+}
 
-# Drop the previous entry BEFORE deleting its tarball: pnpm resolves every
-# existing dependency on any install, so a dangling file: path fails the run.
-dsh plugin --profile $Profile remove '@shion/dsh-vision-bridge' 2>&1 | Out-Null
-node scripts/build-client.mjs | Out-Null
-Remove-Item -Force -ErrorAction SilentlyContinue (Join-Path $out 'shion-dsh-vision-bridge-*.tgz')
-pnpm pack --pack-destination $out | Out-Null
+# The unique version exists only to defeat pnpm's tarball cache, so put the real
+# one back the moment packing is done: git installs resolve by commit and tags
+# are meaningless if every local install rewrites the version field.
+$release = node -p 'require("./package.json").version'
+$version = '0.0.1-dev.' + [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
+try {
+  Set-PkgVersion $version
 
-$tgz = Get-ChildItem (Join-Path $out 'shion-dsh-vision-bridge-*.tgz') |
-  Sort-Object LastWriteTime -Descending | Select-Object -First 1
-Write-Host "packed $version -> $($tgz.FullName)"
+  # Drop the previous entry BEFORE deleting its tarball: pnpm resolves every
+  # existing dependency on any install, so a dangling file: path fails the run.
+  dsh plugin --profile $Profile remove '@shion/dsh-vision-bridge' 2>&1 | Out-Null
+  node scripts/build-client.mjs | Out-Null
+  Remove-Item -Force -ErrorAction SilentlyContinue (Join-Path $out 'shion-dsh-vision-bridge-*.tgz')
+  pnpm pack --pack-destination $out | Out-Null
 
-dsh plugin --profile $Profile add $tgz.FullName 2>&1 | Select-Object -Last 3
+  $tgz = Get-ChildItem (Join-Path $out 'shion-dsh-vision-bridge-*.tgz') |
+    Sort-Object LastWriteTime -Descending | Select-Object -First 1
+  Write-Host "packed $version -> $($tgz.FullName)"
 
-$installed = Join-Path $HOME ".dsh\profiles\$Profile\node_modules\@shion\dsh-vision-bridge\index.js"
-if ((Test-Path $installed) -and (Select-String -Path $installed -Pattern 'vision-bridge ready' -Quiet)) {
-  Write-Host 'verified: installed copy is current'
-} else {
-  Write-Warning "installed copy looks stale - check $installed"
+  dsh plugin --profile $Profile add $tgz.FullName 2>&1 | Select-Object -Last 3
+
+  $installed = Join-Path $HOME ".dsh\profiles\$Profile\node_modules\@shion\dsh-vision-bridge\index.js"
+  if ((Test-Path $installed) -and (Select-String -Path $installed -Pattern 'vision-bridge ready' -Quiet)) {
+    Write-Host 'verified: installed copy is current'
+  } else {
+    Write-Warning "installed copy looks stale - check $installed"
+  }
+} finally {
+  Set-PkgVersion $release
 }
