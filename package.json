@@ -1,6 +1,6 @@
 {
   "name": "@hazukishion/dsh-vision-bridge",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "private": true,
   "description": "DeepSeek Harness profile bundle: gives a text-only model sight by translating image content blocks through an external vision model.",
   "type": "module",
@@ -22,13 +22,13 @@
     "cordis.patch.yml"
   ],
   "peerDependencies": {
-    "@deepseek-ai/dsh-attachment": "^0.0.1-rc.1",
-    "@deepseek-ai/dsh-credentials": "^0.0.1-rc.1",
-    "@deepseek-ai/dsh-llm": "^0.0.1-rc.1",
-    "@deepseek-ai/dsh-settings": "^0.0.1-rc.1",
-    "@deepseek-ai/dsh-tools": "^0.0.1-rc.1",
-    "cordis": "^4.0.0-rc.7",
-    "schemastery": "^3.18.0"
+    "@deepseek-ai/cordis": "^4.0.1",
+    "@deepseek-ai/dsh-attachment": "^0.1.0-rc.6",
+    "@deepseek-ai/dsh-credentials": "^0.1.0-rc.6",
+    "@deepseek-ai/dsh-llm": "^0.1.0-rc.6",
+    "@deepseek-ai/dsh-settings": "^0.1.0-rc.6",
+    "@deepseek-ai/dsh-tools": "^0.1.0-rc.6",
+    "@deepseek-ai/schemastery": "^3.18.1"
   },
   "dsh": {
     "bundle": {

@@ -39,20 +39,32 @@ trap 'setversion "$RELEASE"' EXIT INT TERM
 setversion "0.0.1-dev.$(date +%s)"
 VERSION="$(node -p 'require("./package.json").version')"
 
-# Drop the previous entry BEFORE deleting its tarball: pnpm resolves every
-# existing dependency on any install, so a dangling file: path fails the run.
-dsh plugin --profile "$PROFILE" remove @hazukishion/dsh-vision-bridge >/dev/null 2>&1 || true
 node scripts/build-client.mjs >/dev/null
-rm -f "$OUT"/hazukishion-dsh-vision-bridge-*.tgz
 pnpm pack --pack-destination "$OUT" >/dev/null
-TGZ="$(ls -t "$OUT"/hazukishion-dsh-vision-bridge-*.tgz | head -1)"
-
+TGZ="$OUT/hazukishion-dsh-vision-bridge-$VERSION.tgz"
 echo "packed $VERSION -> $TGZ"
-dsh plugin --profile "$PROFILE" add "$TGZ" 2>&1 | tail -3
 
-INSTALLED="$HOME/.dsh/profiles/$PROFILE/node_modules/@hazukishion/dsh-vision-bridge/index.js"
-if grep -q "vision-bridge ready" "$INSTALLED" 2>/dev/null; then
-  echo "verified: installed copy is current"
+# Order matters, and getting it wrong wedges the profile: the previous entry has
+# to go before its tarball does, because pnpm re-resolves EVERY dependency on
+# any install and a `file:` path pointing at a deleted tarball fails the whole
+# run — including the very command that would have removed it. So the old
+# tarballs are swept only after the new one is installed, and the remove is
+# allowed to fail (there is nothing to remove on a first install).
+dsh plugin --profile "$PROFILE" remove @hazukishion/dsh-vision-bridge >/dev/null 2>&1 || true
+if ! dsh plugin --profile "$PROFILE" add "$TGZ" 2>&1 | tail -3; then
+  echo "FAILED: could not install $TGZ" >&2
+  exit 1
+fi
+find "$OUT" -name "hazukishion-dsh-vision-bridge-*.tgz" ! -name "$(basename "$TGZ")" -delete
+
+# Compare versions, not a marker string: the marker is present in every build,
+# so it reported success even when the install had silently failed and the old
+# copy was still in place.
+INSTALLED="$HOME/.dsh/profiles/$PROFILE/node_modules/@hazukishion/dsh-vision-bridge/package.json"
+GOT="$(node -p "require('$INSTALLED').version" 2>/dev/null || echo missing)"
+if [ "$GOT" = "$VERSION" ]; then
+  echo "verified: installed copy is $GOT"
 else
-  echo "WARNING: installed copy looks stale — check $INSTALLED"
+  echo "WARNING: installed copy is $GOT, expected $VERSION" >&2
+  exit 1
 fi

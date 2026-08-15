@@ -22,7 +22,7 @@
  */
 
 import { defineTool } from '@deepseek-ai/dsh-tools'
-import Schema from 'schemastery'
+import Schema from '@deepseek-ai/schemastery'
 import { createDisplay } from './display.js'
 import { probeModality, shouldTranslate, VERDICT } from './modality.js'
 import { readImageWithin, resolveRoots } from './paths.js'
