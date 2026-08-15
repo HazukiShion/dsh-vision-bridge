@@ -1,0 +1,49 @@
+{
+  "name": "@shion/dsh-vision-bridge",
+  "version": "0.0.1-dev.1786733155",
+  "private": true,
+  "description": "DeepSeek Harness profile bundle: gives a text-only model sight by translating image content blocks through an external vision model.",
+  "type": "module",
+  "main": "index.js",
+  "exports": {
+    ".": "./index.js",
+    "./package.json": "./package.json",
+    "./client": "./client.js"
+  },
+  "files": [
+    "index.js",
+    "vlm.js",
+    "paths.js",
+    "png-crop.js",
+    "modality.js",
+    "display.js",
+    "web.js",
+    "client.js",
+    "cordis.patch.yml"
+  ],
+  "peerDependencies": {
+    "@deepseek-ai/dsh-attachment": "^0.0.1",
+    "@deepseek-ai/dsh-credentials": "^0.0.1",
+    "@deepseek-ai/dsh-llm": "^0.0.1",
+    "@deepseek-ai/dsh-settings": "^0.0.1",
+    "@deepseek-ai/dsh-tools": "^0.0.1",
+    "cordis": "^4.0.0-rc.7",
+    "schemastery": "^3.18.0"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "inject": [
+        "@deepseek-ai/dsh-client-runtime",
+        "@deepseek-ai/dsh-client-ui-settings",
+        "@deepseek-ai/dsh-client-locale"
+      ],
+      "platform": "web"
+    }
+  },
+  "scripts": {
+    "build:client": "node scripts/build-client.mjs"
+  }
+}
