@@ -32,7 +32,11 @@ import { installSettingsRoute } from './web.js'
 
 export const name = '@hazukishion/dsh-vision-bridge'
 
-export const inject = ['tools', 'settings', 'credentials', 'llm', 'attachments', 'webServer']
+// `webServer` is deliberately absent: it is required only by the settings
+// page and the image route, both of which inject it themselves. Demanding it
+// here means the plugin never activates on a profile without one — and a
+// never-activated entry fails host boot rather than degrading quietly.
+export const inject = ['tools', 'settings', 'credentials', 'llm', 'attachments']
 
 /** Flat per profile, no scope protection — hence the personal prefix. */
 export const SETTINGS_NAMESPACE = 'shion-vision-bridge'

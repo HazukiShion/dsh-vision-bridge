@@ -135,6 +135,12 @@ export function createDisplay(ctx, capacity = DEFAULT_CAPACITY) {
   }
 
   const origin = () => {
+    if (!ctx.webServer) {
+      throw new Error(
+        'this profile has no web server, so there is nowhere to serve the picture from. '
+        + 'Showing images needs a profile that runs the web app.',
+      )
+    }
     const host = ctx.webServer.host === '0.0.0.0' ? '127.0.0.1' : ctx.webServer.host
     return `http://${host}:${ctx.webServer.port}`
   }
@@ -173,41 +179,53 @@ export function createDisplay(ctx, capacity = DEFAULT_CAPACITY) {
       return `${origin()}${ROUTE_PREFIX}/${payload}.${sign(payload)}`
     },
 
-    /** Load the key and claim the route. */
+    /**
+     * Load the key and claim the route.
+     *
+     * The route waits for `webServer` through an injection rather than the
+     * plugin declaring it as a hard requirement: translation and `vision_ask`
+     * work perfectly well on a profile that runs no web server, and demanding
+     * the service up front means the whole plugin never activates there —
+     * which fails host boot outright rather than degrading.
+     */
     async install() {
       key = await prepareSigningKey()
-      return ctx.webServer.register({
-        kind: 'prefix',
-        path: ROUTE_PREFIX,
-        handler: async (req, res) => {
-          const segment = decodeURIComponent(req.url?.split('?')[0].slice(ROUTE_PREFIX.length + 1) ?? '')
-          const ref = open(segment)
+      let dispose = () => {}
+      ctx.inject(['webServer'], (webCtx) => {
+        webCtx.effect(() => webCtx.webServer.register({
+          kind: 'prefix',
+          path: ROUTE_PREFIX,
+          handler: async (req, res) => {
+            const segment = decodeURIComponent(req.url?.split('?')[0].slice(ROUTE_PREFIX.length + 1) ?? '')
+            const ref = open(segment)
 
-          // A bad signature and a well-formed link to a vanished object are
-          // reported identically: saying which would confirm that a payload
-          // was correctly signed.
-          if (!ref) {
-            res.writeHead(404, { 'content-type': 'text/plain; charset=utf-8' })
-            res.end('no such image')
-            return
-          }
+            // A bad signature and a well-formed link to a vanished object are
+            // reported identically: saying which would confirm that a payload
+            // was correctly signed.
+            if (!ref) {
+              res.writeHead(404, { 'content-type': 'text/plain; charset=utf-8' })
+              res.end('no such image')
+              return
+            }
 
-          try {
-            const stored = await ctx.attachments.readImage(ref)
-            res.writeHead(200, {
-              'content-type': ref.mediaType,
-              'content-length': String(stored.data.byteLength),
-              'content-disposition': 'inline',
-              // Immutable content-addressed bytes: caching them costs nothing.
-              'cache-control': 'private, max-age=86400',
-            })
-            res.end(Buffer.from(stored.data))
-          } catch {
-            res.writeHead(404, { 'content-type': 'text/plain; charset=utf-8' })
-            res.end('no such image')
-          }
-        },
+            try {
+              const stored = await ctx.attachments.readImage(ref)
+              res.writeHead(200, {
+                'content-type': ref.mediaType,
+                'content-length': String(stored.data.byteLength),
+                'content-disposition': 'inline',
+                // Immutable content-addressed bytes: caching them costs nothing.
+                'cache-control': 'private, max-age=86400',
+              })
+              res.end(Buffer.from(stored.data))
+            } catch {
+              res.writeHead(404, { 'content-type': 'text/plain; charset=utf-8' })
+              res.end('no such image')
+            }
+          },
+        }), 'shion-vision-bridge: image route')
       })
+      return () => dispose()
     },
   }
 }

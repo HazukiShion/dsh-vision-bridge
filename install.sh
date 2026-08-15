@@ -50,12 +50,34 @@ echo "packed $VERSION -> $TGZ"
 # run — including the very command that would have removed it. So the old
 # tarballs are swept only after the new one is installed, and the remove is
 # allowed to fail (there is nothing to remove on a first install).
+# Self-heal a wedged profile first. If our own entry points at a tarball that
+# no longer exists — moved, cleaned up, or deleted by an older version of this
+# script — then EVERY pnpm command in that profile fails, including the remove
+# below, and nothing can dig it out. Dropping the entry by hand is the only way
+# back in.
+node -e '
+  const fs = require("fs")
+  const path = process.argv[1], name = process.argv[2]
+  let pkg
+  try { pkg = JSON.parse(fs.readFileSync(path, "utf8")) } catch { process.exit(0) }
+  const spec = pkg.dependencies?.[name]
+  if (typeof spec === "string" && spec.startsWith("file:") && !fs.existsSync(spec.slice(5))) {
+    delete pkg.dependencies[name]
+    fs.writeFileSync(path, JSON.stringify(pkg, null, 2) + "\n")
+    console.error(`install.sh: dropped ${name} — its tarball was gone`)
+  }
+' "$HOME/.dsh/profiles/$PROFILE/package.json" "@hazukishion/dsh-vision-bridge" || true
+
 dsh plugin --profile "$PROFILE" remove @hazukishion/dsh-vision-bridge >/dev/null 2>&1 || true
 if ! dsh plugin --profile "$PROFILE" add "$TGZ" 2>&1 | tail -3; then
   echo "FAILED: could not install $TGZ" >&2
   exit 1
 fi
-find "$OUT" -name "hazukishion-dsh-vision-bridge-*.tgz" ! -name "$(basename "$TGZ")" -delete
+# Old tarballs are deliberately NOT swept. The directory is shared by every
+# profile, and each profile's package.json holds a `file:` path into it — so
+# deleting "everything but the newest" breaks any OTHER profile still
+# pointing at one, and pnpm then fails every command in that profile,
+# including the remove that would fix it. They are ~40 KB; leave them.
 
 # Compare versions, not a marker string: the marker is present in every build,
 # so it reported success even when the install had silently failed and the old
