@@ -41,24 +41,43 @@ $version = '0.0.1-dev.' + [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
 try {
   Set-PkgVersion $version
 
-  # Drop the previous entry BEFORE deleting its tarball: pnpm resolves every
-  # existing dependency on any install, so a dangling file: path fails the run.
-  dsh plugin --profile $Profile remove '@hazukishion/dsh-vision-bridge' 2>&1 | Out-Null
   node scripts/build-client.mjs | Out-Null
-  Remove-Item -Force -ErrorAction SilentlyContinue (Join-Path $out 'hazukishion-dsh-vision-bridge-*.tgz')
   pnpm pack --pack-destination $out | Out-Null
+  $tgz = Join-Path $out "hazukishion-dsh-vision-bridge-$version.tgz"
+  Write-Host "packed $version -> $tgz"
 
-  $tgz = Get-ChildItem (Join-Path $out 'hazukishion-dsh-vision-bridge-*.tgz') |
-    Sort-Object LastWriteTime -Descending | Select-Object -First 1
-  Write-Host "packed $version -> $($tgz.FullName)"
+  # Self-heal a wedged profile first. If our own entry points at a tarball that
+  # no longer exists — moved, cleaned up, or deleted by an older version of this
+  # script — then EVERY pnpm command in that profile fails, including the remove
+  # below, and nothing can dig it out.
+  $profilePkg = Join-Path $HOME ".dsh\profiles\$Profile\package.json"
+  if (Test-Path $profilePkg) {
+    $j = Get-Content $profilePkg -Raw | ConvertFrom-Json
+    $spec = $j.dependencies.'@hazukishion/dsh-vision-bridge'
+    if ($spec -and $spec.StartsWith('file:') -and -not (Test-Path $spec.Substring(5))) {
+      $j.dependencies.PSObject.Properties.Remove('@hazukishion/dsh-vision-bridge')
+      $j | ConvertTo-Json -Depth 20 | Set-Content $profilePkg
+      Write-Warning "dropped @hazukishion/dsh-vision-bridge - its tarball was gone"
+    }
+  }
 
-  dsh plugin --profile $Profile add $tgz.FullName 2>&1 | Select-Object -Last 3
+  # Order matters, and getting it wrong wedges the profile: the previous entry
+  # has to go before its tarball does, because pnpm re-resolves EVERY dependency
+  # on any install and a `file:` path pointing at a deleted tarball fails the
+  # whole run. Old tarballs are deliberately NOT swept either — that directory
+  # is shared by every profile, and each holds a file: path into it.
+  dsh plugin --profile $Profile remove '@hazukishion/dsh-vision-bridge' 2>&1 | Out-Null
+  dsh plugin --profile $Profile add $tgz 2>&1 | Select-Object -Last 3
 
-  $installed = Join-Path $HOME ".dsh\profiles\$Profile\node_modules\@hazukishion\dsh-vision-bridge\index.js"
-  if ((Test-Path $installed) -and (Select-String -Path $installed -Pattern 'vision-bridge ready' -Quiet)) {
-    Write-Host 'verified: installed copy is current'
+  # Compare versions, not a marker string: the marker is in every build, so it
+  # reported success even when the install had silently failed.
+  $installedPkg = Join-Path $HOME ".dsh\profiles\$Profile\node_modules\@hazukishion\dsh-vision-bridge\package.json"
+  $got = if (Test-Path $installedPkg) { (Get-Content $installedPkg -Raw | ConvertFrom-Json).version } else { 'missing' }
+  if ($got -eq $version) {
+    Write-Host "verified: installed copy is $got"
   } else {
-    Write-Warning "installed copy looks stale - check $installed"
+    Write-Warning "installed copy is $got, expected $version"
+    exit 1
   }
 } finally {
   Set-PkgVersion $release
