@@ -41,6 +41,9 @@ export const inject = ['tools', 'settings', 'credentials', 'llm', 'attachments']
 /** Flat per profile, no scope protection — hence the personal prefix. */
 export const SETTINGS_NAMESPACE = 'shion-vision-bridge'
 
+/** Shape of the handles minted for translated images, e.g. `img_511c828d`. */
+const HANDLE_RE = /^img_[0-9a-f]{6,}$/i
+
 export const Config = Schema.object({
   translate: Schema.string().default('auto')
     .description('auto | on | off. auto translates only for models that cannot read images.'),
@@ -267,7 +270,9 @@ export function apply(ctx, config = {}) {
     parameters: {
       images: {
         type: 'array', items: { type: 'string' }, required: true,
-        description: 'Image paths, absolute or relative to the session workspace.',
+        description: 'Image paths (absolute or relative to the session workspace), '
+          + 'or handles like img_8562e002 taken from a <visual handle=...> block — '
+          + 'a screenshot has no file on disk, so its handle is the only way to look at it.',
       },
       query: {
         type: 'string',
@@ -302,7 +307,7 @@ export function apply(ctx, config = {}) {
       render: (_args, value) => [{ type: 'text', text: value.answer }],
     },
     async execute(args, exec) {
-      if (args.images.length === 0) throw new Error('pass at least one image path')
+      if (args.images.length === 0) throw new Error('pass at least one image path or handle')
       if (args.images.length > resolved.maxImages) {
         throw new Error(`at most ${resolved.maxImages} images per call; got ${args.images.length}`)
       }
@@ -311,12 +316,32 @@ export function apply(ctx, config = {}) {
       const roots = await resolveRoots(workspace, resolved.allowedDirs)
 
       if (args.region && args.images.length > 1) {
-        throw new Error('region applies to a single image; pass one path when cropping')
+        throw new Error('region applies to a single image; pass one path or handle when cropping')
       }
 
+      // A handle is not a path, and screenshots never touch the filesystem —
+      // their bytes go straight into the attachment store. Without this branch
+      // the model can be handed a picture it has no way to look at, and the
+      // observed behaviour is that it hunts the disk for a file that does not
+      // exist, then writes a screen-capture script to force one into being.
       const loaded = []
-      for (const path of args.images) {
-        loaded.push(await readImageWithin(path, roots, resolved.maxImageBytes))
+      for (const image of args.images) {
+        const ref = HANDLE_RE.test(image) ? display.get(image) : undefined
+        if (ref) {
+          const stored = await ctx.attachments.readImage(ref)
+          loaded.push({ path: image, mediaType: ref.mediaType, bytes: Buffer.from(stored.data) })
+          continue
+        }
+        if (HANDLE_RE.test(image)) {
+          const known = display.handles()
+          throw new Error(
+            `no image with handle ${image}. `
+            + (known.length
+              ? `Still resolvable: ${known.slice(-5).join(', ')}.`
+              : 'No handles are resolvable in this process yet.'),
+          )
+        }
+        loaded.push(await readImageWithin(image, roots, resolved.maxImageBytes))
       }
 
       // Cropping happens before the request, so the endpoint sees only the part

@@ -134,15 +134,26 @@ export function createDisplay(ctx, capacity = DEFAULT_CAPACITY) {
     }
   }
 
+  /**
+   * The one context allowed to read `webServer`, captured when it arrives.
+   *
+   * A falsy check does not work here: cordis proxies every context, and reading
+   * a service the context did not declare in `inject` THROWS
+   * (`cannot get property "webServer" without inject`) rather than returning
+   * undefined. So the guard has to be a reference we only set from inside the
+   * injection — which is also what makes the absence reportable in words.
+   */
+  let web
+
   const origin = () => {
-    if (!ctx.webServer) {
+    if (!web) {
       throw new Error(
         'this profile has no web server, so there is nowhere to serve the picture from. '
         + 'Showing images needs a profile that runs the web app.',
       )
     }
-    const host = ctx.webServer.host === '0.0.0.0' ? '127.0.0.1' : ctx.webServer.host
-    return `http://${host}:${ctx.webServer.port}`
+    const host = web.webServer.host === '0.0.0.0' ? '127.0.0.1' : web.webServer.host
+    return `http://${host}:${web.webServer.port}`
   }
 
   return {
@@ -190,42 +201,45 @@ export function createDisplay(ctx, capacity = DEFAULT_CAPACITY) {
      */
     async install() {
       key = await prepareSigningKey()
-      let dispose = () => {}
       ctx.inject(['webServer'], (webCtx) => {
-        webCtx.effect(() => webCtx.webServer.register({
-          kind: 'prefix',
-          path: ROUTE_PREFIX,
-          handler: async (req, res) => {
-            const segment = decodeURIComponent(req.url?.split('?')[0].slice(ROUTE_PREFIX.length + 1) ?? '')
-            const ref = open(segment)
+        webCtx.effect(() => {
+          web = webCtx
+          const unregister = webCtx.webServer.register({
+            kind: 'prefix',
+            path: ROUTE_PREFIX,
+            handler: async (req, res) => {
+              const segment = decodeURIComponent(req.url?.split('?')[0].slice(ROUTE_PREFIX.length + 1) ?? '')
+              const ref = open(segment)
 
-            // A bad signature and a well-formed link to a vanished object are
-            // reported identically: saying which would confirm that a payload
-            // was correctly signed.
-            if (!ref) {
-              res.writeHead(404, { 'content-type': 'text/plain; charset=utf-8' })
-              res.end('no such image')
-              return
-            }
+              // A bad signature and a well-formed link to a vanished object are
+              // reported identically: saying which would confirm that a payload
+              // was correctly signed.
+              if (!ref) {
+                res.writeHead(404, { 'content-type': 'text/plain; charset=utf-8' })
+                res.end('no such image')
+                return
+              }
 
-            try {
-              const stored = await ctx.attachments.readImage(ref)
-              res.writeHead(200, {
-                'content-type': ref.mediaType,
-                'content-length': String(stored.data.byteLength),
-                'content-disposition': 'inline',
-                // Immutable content-addressed bytes: caching them costs nothing.
-                'cache-control': 'private, max-age=86400',
-              })
-              res.end(Buffer.from(stored.data))
-            } catch {
-              res.writeHead(404, { 'content-type': 'text/plain; charset=utf-8' })
-              res.end('no such image')
-            }
-          },
-        }), 'shion-vision-bridge: image route')
+              try {
+                const stored = await ctx.attachments.readImage(ref)
+                res.writeHead(200, {
+                  'content-type': ref.mediaType,
+                  'content-length': String(stored.data.byteLength),
+                  'content-disposition': 'inline',
+                  // Immutable content-addressed bytes: caching them costs nothing.
+                  'cache-control': 'private, max-age=86400',
+                })
+                res.end(Buffer.from(stored.data))
+              } catch {
+                res.writeHead(404, { 'content-type': 'text/plain; charset=utf-8' })
+                res.end('no such image')
+              }
+            },
+          })
+          return () => { web = undefined; unregister() }
+        }, 'shion-vision-bridge: image route')
       })
-      return () => dispose()
+      return () => {}
     },
   }
 }
