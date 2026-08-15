@@ -28,10 +28,30 @@ const SIGNATURES = [
   { type: 'image/gif', bytes: [0x47, 0x49, 0x46, 0x38] },
 ]
 
+/**
+ * Windows only, and deliberately not macOS.
+ *
+ * Both sides of the comparison come from `realpath()`, which on macOS returns
+ * the canonical on-disk spelling — so a case mismatch cannot survive it there,
+ * and folding anyway would *widen* the boundary on a case-sensitive volume
+ * where `/ws` and `/WS` are genuinely different directories. Windows realpath
+ * makes no such guarantee about drive letters or component case, so without
+ * folding a file truly inside the workspace gets refused: a denial that reads
+ * as a bug in the tool rather than a working guard.
+ */
+const CASE_INSENSITIVE = process.platform === 'win32'
+
+/** Fold only for comparison; the path we return and open stays as resolved. */
+function comparable(path) {
+  return CASE_INSENSITIVE ? path.toLowerCase() : path
+}
+
 /** True when `child` is `parent` itself or sits underneath it. */
 function isWithin(parent, child) {
-  if (child === parent) return true
-  return child.startsWith(parent.endsWith(sep) ? parent : parent + sep)
+  const a = comparable(parent)
+  const b = comparable(child)
+  if (a === b) return true
+  return b.startsWith(a.endsWith(sep) ? a : a + sep)
 }
 
 /** RIFF....WEBP needs two checks at different offsets. */

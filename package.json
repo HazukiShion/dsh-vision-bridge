@@ -1,6 +1,6 @@
 {
   "name": "@shion/dsh-vision-bridge",
-  "version": "0.0.1-dev.1786733155",
+  "version": "0.0.1-dev.1786758123",
   "private": true,
   "description": "DeepSeek Harness profile bundle: gives a text-only model sight by translating image content blocks through an external vision model.",
   "type": "module",
